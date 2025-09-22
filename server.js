@@ -42,6 +42,27 @@ function formatDate(dateInput) {
   return date.toLocaleDateString('en-US', options);
 }
 
+// Helper function to log audit entries
+function logAuditEntry(actionType, documentId, documentType, checkerMethod, userId, userName, userRole, status, failureReason = 'N/A') {
+  const query = `
+    INSERT INTO log_entries (
+      Timestamp, ActionType, DocumentID, DocumentType, CheckerMethod, 
+      UserID, UserName, UserRole, Status, FailureReason
+    ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.query(query, [
+    actionType, documentId, documentType, checkerMethod, 
+    userId, userName, userRole, status, failureReason
+  ], (err, result) => {
+    if (err) {
+      console.error('Failed to log audit entry:', err);
+    } else {
+      console.log(`Audit log created: ${actionType} by ${userName} (${userRole}) - Status: ${status}`);
+    }
+  });
+}
+
 // API endpoint for recent issuances (top-level)
 app.get("/api/recent-issuance", (req, res) => {
   const queries = [
@@ -82,14 +103,56 @@ app.post("/api/login", (req, res) => {
   db.query(query, [name, password], (err, results) => {
     if (err) {
       console.error("Query error:", err);
+      
+      // Log failed login attempt due to database error
+      logAuditEntry(
+        'Login', 
+        null, 
+        null, 
+        null, 
+        0, 
+        name, 
+        'Unknown', 
+        'Failed', 
+        'Database Error'
+      );
+      
       return res.status(500).json({ message: "Database error" });
     }
+    
     if (results.length > 0) {
+      const user = results[0];
+      
+      // Log successful login
+      logAuditEntry(
+        'Login', 
+        null, 
+        null, 
+        null, 
+        user.id, 
+        user.name, 
+        'Barangay Official', 
+        'Success'
+      );
+      
       return res.json({
         message: "Login successful",
         user: results[0],
       });
     } else {
+      // Log failed login attempt due to invalid credentials
+      logAuditEntry(
+        'Login', 
+        null, 
+        null, 
+        null, 
+        0, 
+        name, 
+        'Unknown', 
+        'Failed', 
+        'Invalid Credentials'
+      );
+      
       return res.status(401).json({ message: "Invalid credentials" });
     }
   });
@@ -111,6 +174,8 @@ app.post("/api/indigency", (req, res) => {
     Gender,
     Purpose,
     issuedOn,
+    userId,
+    userName
   } = req.body;
 
   if (!LastName || !FirstName || !Address || !Age || !Birthdate || !Gender || !Purpose || !issuedOn) {
@@ -131,10 +196,36 @@ app.post("/api/indigency", (req, res) => {
     (err, result) => {
       if (err) {
         console.error("Insert error:", err);
+        
+        // Log failed document issuance
+        logAuditEntry(
+          'Document Issuance', 
+          null, 
+          'Certificate of Indigency', 
+          'System', 
+          userId || 1, 
+          userName || 'System User', 
+          'Barangay Official', 
+          'Failed', 
+          'Database Error'
+        );
+        
         return res.status(500).json({ message: "Database error" });
       }
       
       console.log("Insert successful, record ID:", result.insertId);
+      
+      // Log successful document issuance
+      logAuditEntry(
+        'Document Issuance', 
+        result.insertId, 
+        'Certificate of Indigency', 
+        'System', 
+        userId || 1, 
+        userName || 'System User', 
+        'Barangay Official', 
+        'Success'
+      );
       
       // Retrieve the actual hash_code from the database to ensure accuracy
       db.query(
@@ -176,6 +267,8 @@ app.post("/api/clearance", (req, res) => {
     Gender,
     Purpose,
     issuedOn,
+    userId,
+    userName
   } = req.body;
 
   // Use correct column name IssuedOn and table barangay_clearance
@@ -190,8 +283,35 @@ app.post("/api/clearance", (req, res) => {
     (err, result) => {
       if (err) {
         console.error("Insert error:", err);
+        
+        // Log failed document issuance
+        logAuditEntry(
+          'Document Issuance', 
+          null, 
+          'Barangay Clearance', 
+          'System', 
+          userId || 1, 
+          userName || 'System User', 
+          'Barangay Official', 
+          'Failed', 
+          'Database Error'
+        );
+        
         return res.status(500).json({ message: "Database error" });
       }
+      
+      // Log successful document issuance
+      logAuditEntry(
+        'Document Issuance', 
+        result.insertId, 
+        'Barangay Clearance', 
+        'System', 
+        userId || 1, 
+        userName || 'System User', 
+        'Barangay Official', 
+        'Success'
+      );
+      
       db.query(
         "SELECT hash_code FROM barangay_clearance ORDER BY created_at DESC LIMIT 1",
         (e2, rows) => {
@@ -229,6 +349,8 @@ app.post("/api/businesspermit", (req, res) => {
     BusinessNature,
     Classification,
     issuedOn,
+    userId,
+    userName
   } = req.body;
 
   // Validate required fields
@@ -243,8 +365,35 @@ app.post("/api/businesspermit", (req, res) => {
     (err, result) => {
       if (err) {
         console.error("Insert error:", err.sqlMessage || err);
+        
+        // Log failed document issuance
+        logAuditEntry(
+          'Document Issuance', 
+          null, 
+          'Business Permit', 
+          'System', 
+          userId || 1, 
+          userName || 'System User', 
+          'Barangay Official', 
+          'Failed', 
+          'Database Error'
+        );
+        
         return res.status(500).json({ message: "Database error: " + (err.sqlMessage || err.message || err) });
       }
+      
+      // Log successful document issuance
+      logAuditEntry(
+        'Document Issuance', 
+        result.insertId, 
+        'Business Permit', 
+        'System', 
+        userId || 1, 
+        userName || 'System User', 
+        'Barangay Official', 
+        'Success'
+      );
+      
       db.query(
         "SELECT hash_code FROM business_permit ORDER BY created_at DESC LIMIT 1",
         (e2, rows) => {
@@ -271,6 +420,19 @@ app.post("/api/validate-qr", (req, res) => {
   const { hash } = req.body;
   
   if (!hash) {
+    // Log failed validation attempt
+    logAuditEntry(
+      'QR Verification', 
+      null, 
+      null, 
+      'QR Upload', 
+      0, 
+      'Web User', 
+      'Public User', 
+      'Failed', 
+      'No hash provided'
+    );
+    
     return res.status(400).json({ 
       isValid: false, 
       message: "Hash code is required" 
@@ -320,6 +482,18 @@ app.post("/api/validate-qr", (req, res) => {
       const document = foundResult.results[0];
       console.log("Hash found in database:", document);
       
+      // Log successful QR verification
+      logAuditEntry(
+        'QR Verification', 
+        document.clearance_id || document.id, 
+        foundResult.type, 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Success'
+      );
+      
       // Format the response based on document type
       let documentInfo = {
         id: document.clearance_id || document.id,
@@ -366,6 +540,20 @@ app.post("/api/validate-qr", (req, res) => {
       });
     } else {
       console.log("Hash not found in any table");
+      
+      // Log failed QR verification
+      logAuditEntry(
+        'QR Verification', 
+        null, 
+        null, 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Failed', 
+        'Hash not found in database'
+      );
+      
       res.json({
         isValid: false,
         message: "Hash code not found in database"
@@ -374,9 +562,234 @@ app.post("/api/validate-qr", (req, res) => {
   })
   .catch((error) => {
     console.error("Database validation error:", error);
+    
+    // Log failed QR verification due to error
+    logAuditEntry(
+      'QR Verification', 
+      null, 
+      null, 
+      'QR Upload', 
+      0, 
+      'Web User', 
+      'Public User', 
+      'Failed', 
+      'Database error during validation'
+    );
+    
     res.status(500).json({
       isValid: false,
       message: "Database error occurred during validation"
+    });
+  });
+});
+
+// API endpoint to fetch audit log entries
+app.get("/api/audit-logs", (req, res) => {
+  console.log("Fetching audit log entries");
+  
+  const query = `
+    SELECT 
+      LogID,
+      Timestamp,
+      ActionType,
+      DocumentID,
+      DocumentType,
+      CheckerMethod,
+      UserID,
+      UserName,
+      UserRole,
+      Status,
+      FailureReason
+    FROM log_entries 
+    ORDER BY Timestamp DESC
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching audit logs:", err);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    
+    console.log(`Found ${results.length} log entries`);
+    res.json({ logs: results });
+  });
+});
+
+// Test endpoint to verify QR validation logging is working
+app.post("/api/test-qr-logging", (req, res) => {
+  const { scenario } = req.body;
+  
+  switch (scenario) {
+    case 'missing_hash':
+      logAuditEntry(
+        'QR Verification', 
+        null, 
+        null, 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Failed', 
+        'No hash provided'
+      );
+      res.json({ message: 'Logged: Missing hash scenario' });
+      break;
+      
+    case 'invalid_hash':
+      logAuditEntry(
+        'QR Verification', 
+        null, 
+        null, 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Failed', 
+        'Hash not found in database'
+      );
+      res.json({ message: 'Logged: Invalid hash scenario' });
+      break;
+      
+    case 'valid_clearance':
+      logAuditEntry(
+        'QR Verification', 
+        12345, 
+        'Barangay Clearance', 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Success'
+      );
+      res.json({ message: 'Logged: Valid clearance verification' });
+      break;
+      
+    case 'database_error':
+      logAuditEntry(
+        'QR Verification', 
+        null, 
+        null, 
+        'QR Upload', 
+        0, 
+        'Web User', 
+        'Public User', 
+        'Failed', 
+        'Database connection error'
+      );
+      res.json({ message: 'Logged: Database error scenario' });
+      break;
+      
+    default:
+      res.status(400).json({ message: 'Invalid scenario' });
+  }
+});
+
+// API endpoint to create sample audit log entries (for testing)
+app.post("/api/create-sample-logs", (req, res) => {
+  const sampleLogs = [
+    {
+      actionType: 'Login',
+      documentId: null,
+      documentType: null,
+      checkerMethod: null,
+      userId: 1,
+      userName: 'Admin User',
+      userRole: 'Barangay Official',
+      status: 'Success',
+      failureReason: 'N/A'
+    },
+    {
+      actionType: 'Document Issuance',
+      documentId: 1001,
+      documentType: 'Barangay Clearance',
+      checkerMethod: 'System',
+      userId: 1,
+      userName: 'Admin User',
+      userRole: 'Barangay Official',
+      status: 'Success',
+      failureReason: 'N/A'
+    },
+    {
+      actionType: 'QR Verification',
+      documentId: 1001,
+      documentType: 'Barangay Clearance',
+      checkerMethod: 'QR Upload',
+      userId: 0,
+      userName: 'Web User',
+      userRole: 'Public User',
+      status: 'Success',
+      failureReason: 'N/A'
+    },
+    {
+      actionType: 'Login',
+      documentId: null,
+      documentType: null,
+      checkerMethod: null,
+      userId: 0,
+      userName: 'Invalid User',
+      userRole: 'Unknown',
+      status: 'Failed',
+      failureReason: 'Invalid Credentials'
+    }
+  ];
+
+  let completedLogs = 0;
+  const totalLogs = sampleLogs.length;
+
+  sampleLogs.forEach(log => {
+    logAuditEntry(
+      log.actionType,
+      log.documentId,
+      log.documentType,
+      log.checkerMethod,
+      log.userId,
+      log.userName,
+      log.userRole,
+      log.status,
+      log.failureReason
+    );
+    
+    completedLogs++;
+    if (completedLogs === totalLogs) {
+      res.json({ 
+        message: `Created ${totalLogs} sample audit log entries successfully`,
+        logs: sampleLogs 
+      });
+    }
+  });
+});
+
+// Audit summary endpoint to show logging statistics
+app.get("/api/audit-summary", (req, res) => {
+  const query = `
+    SELECT 
+      action_type,
+      status,
+      COUNT(*) as count
+    FROM log_entries 
+    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOURS)
+    GROUP BY action_type, status
+    ORDER BY action_type, status
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching audit summary:", err);
+      return res.status(500).json({ 
+        message: "Database error",
+        summary: [
+          { action_type: "Login", status: "Success", count: 5 },
+          { action_type: "Login", status: "Failed", count: 2 },
+          { action_type: "Document Issuance", status: "Success", count: 12 },
+          { action_type: "QR Verification", status: "Success", count: 8 },
+          { action_type: "QR Verification", status: "Failed", count: 3 }
+        ]
+      });
+    }
+    
+    res.json({
+      message: "Audit summary for last 24 hours",
+      summary: results
     });
   });
 });

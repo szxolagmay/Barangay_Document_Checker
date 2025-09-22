@@ -101,7 +101,7 @@ export default function PublicDocumentChecker() {
     if (!uploadedImage) {
       setValidationResult({
         isValid: false,
-        message: "No QR code image uploaded."
+        message: "❌ No QR code image uploaded. Please upload a QR code image first."
       });
       return;
     }
@@ -111,8 +111,28 @@ export default function PublicDocumentChecker() {
 
     try {
       // Step 1: Decode QR code from image
-      const qrHash = await decodeQRFromImage(uploadedImage);
-      console.log('Extracted QR hash:', qrHash);
+      let qrHash;
+      try {
+        qrHash = await decodeQRFromImage(uploadedImage);
+        console.log('Extracted QR hash:', qrHash);
+        
+        if (!qrHash || qrHash.trim() === '') {
+          setValidationResult({
+            isValid: false,
+            message: "❌ No valid QR code found in the uploaded image. Please ensure the image contains a clear QR code."
+          });
+          setValidating(false);
+          return;
+        }
+      } catch (qrDecodeError) {
+        console.error('QR decoding failed:', qrDecodeError);
+        setValidationResult({
+          isValid: false,
+          message: "❌ Failed to decode QR code from image. Please ensure the image contains a valid QR code and try again."
+        });
+        setValidating(false);
+        return;
+      }
       
       // Step 2: Send hash to backend for validation
       try {
@@ -133,89 +153,93 @@ export default function PublicDocumentChecker() {
           if (data.isValid) {
             setValidationResult({
               isValid: true,
-              message: `✅ Valid document! This ${data.documentType} certificate is authentic.`,
+              message: `✅ Document Verified Successfully! This ${data.documentType} certificate is authentic and valid.`,
               documentInfo: data.document
             });
           } else {
             setValidationResult({
               isValid: false,
-              message: "❌ Invalid QR code. This document could not be verified in our database."
+              message: `❌ Document Verification Failed: ${data.message || 'This QR code is not registered in our database. The document may be fraudulent or expired.'}`
             });
           }
         } else {
+          // Handle HTTP error responses
+          const errorMessage = data.message || 'Server error during validation';
           setValidationResult({
             isValid: false,
-            message: `❌ Validation error: ${data.message || 'Unable to validate document'}`
+            message: `❌ Validation Error: ${errorMessage}`
           });
         }
       } catch (networkError) {
-        // If backend API is not available, use temporary mock validation
-        console.log('Backend API not available. Using temporary mock validation...');
+        console.error('Network error during QR validation:', networkError);
         
-        // Temporary mock database for testing (remove when MySQL is set up)
-        const mockDatabase = [
-          {
-            hash: "db8237d31e7ce91969940bd1e3967001",
-            type: "Barangay Clearance",
-            name: "John M Doe",
-            address: "McArthur Highway corner Aguas Street, Balibago",
-            purpose: "School Requirement",
-            issuedOn: "September 22, 2025"
-          },
-          {
-            hash: "b5e2ec106a20c84d73644aae05babf2e",
-            type: "Certificate of Indigency",
-            name: "Jane Smith",
-            address: "Sample Address",
-            purpose: "Medical Assistance",
-            issuedOn: "September 20, 2025"
-          }
-        ];
-        
-        const foundDocument = mockDatabase.find(doc => 
-          qrHash.toLowerCase().includes(doc.hash.toLowerCase()) || 
-          doc.hash.toLowerCase().includes(qrHash.toLowerCase())
-        );
-        
-        if (foundDocument) {
-          setValidationResult({
-            isValid: true,
-            message: `✅ Valid document! ${foundDocument.type} verified (MOCK MODE).`,
-            documentInfo: {
-              id: foundDocument.hash.substring(0, 8).toUpperCase(),
-              type: foundDocument.type,
-              name: foundDocument.name,
-              address: foundDocument.address,
-              purpose: foundDocument.purpose,
-              issuedOn: foundDocument.issuedOn,
-              hash: foundDocument.hash
+        // Check if it's a network connectivity issue
+        if (networkError instanceof Error && networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
+          // If backend API is not available, use temporary mock validation
+          console.log('Backend API not available. Using temporary mock validation...');
+          
+          // Temporary mock database for testing (remove when MySQL is set up)
+          const mockDatabase = [
+            {
+              hash: "db8237d31e7ce91969940bd1e3967001",
+              type: "Barangay Clearance",
+              name: "John M Doe",
+              address: "McArthur Highway corner Aguas Street, Balibago",
+              purpose: "School Requirement",
+              issuedOn: "September 22, 2025"
+            },
+            {
+              hash: "b5e2ec106a20c84d73644aae05babf2e",
+              type: "Certificate of Indigency",
+              name: "Jane Smith",
+              address: "Sample Address",
+              purpose: "Medical Assistance",
+              issuedOn: "September 20, 2025"
             }
-          });
+          ];
+          
+          const foundDocument = mockDatabase.find(doc => 
+            qrHash.toLowerCase().includes(doc.hash.toLowerCase()) || 
+            doc.hash.toLowerCase().includes(qrHash.toLowerCase())
+          );
+          
+          if (foundDocument) {
+            setValidationResult({
+              isValid: true,
+              message: `✅ Document Verified! ${foundDocument.type} is valid (OFFLINE MODE - Backend unavailable).`,
+              documentInfo: {
+                id: foundDocument.hash.substring(0, 8).toUpperCase(),
+                type: foundDocument.type,
+                name: foundDocument.name,
+                address: foundDocument.address,
+                purpose: foundDocument.purpose,
+                issuedOn: foundDocument.issuedOn,
+                hash: foundDocument.hash
+              }
+            });
+          } else {
+            setValidationResult({
+              isValid: false,
+              message: `❌ Document Not Found: The QR code hash does not match any records in our database.\n\nQR Hash: "${qrHash.substring(0, 32)}..."\n\n⚠️ OFFLINE MODE: Backend server is unavailable. Limited validation only.\n\nTo enable full validation:\n1. Install MySQL Server\n2. Create 'barangay_db' database\n3. Start server with: node server.js\n\nSee DATABASE_SETUP.md for detailed instructions.`
+            });
+          }
         } else {
+          // Handle other types of network errors
           setValidationResult({
             isValid: false,
-            message: `❌ Document not found in mock database.
-            
-QR Hash: "${qrHash.substring(0, 32)}..."
-
-To enable full validation:
-1. Install MySQL Server
-2. Create 'barangay_db' database  
-3. Start server with: node server.js
-
-See DATABASE_SETUP.md for detailed instructions.`
+            message: `❌ Network Error: Unable to connect to validation server. Please check your internet connection and try again.\n\nError: ${networkError instanceof Error ? networkError.message : 'Connection failed'}`
           });
         }
       }
     } catch (error) {
-      console.error('QR validation error:', error);
+      console.error("Unexpected error during QR validation:", error);
       setValidationResult({
         isValid: false,
-        message: `❌ ${error instanceof Error ? error.message : 'Error validating QR code. Please try again with a clearer image.'}`
+        message: `❌ Unexpected Error: An unexpected error occurred while processing the QR code.\n\nError Details: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support if the problem persists.`
       });
-    } finally {
-      setValidating(false);
     }
+
+    setValidating(false);
   };
 
   // Cleanup object URL when file changes or component unmounts

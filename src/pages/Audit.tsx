@@ -3,8 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Layout from "./Layout";
 
+interface LogEntry {
+  LogID: number;
+  Timestamp: string;
+  ActionType: string;
+  DocumentID: number | null;
+  DocumentType: string | null;
+  CheckerMethod: string | null;
+  UserID: number;
+  UserName: string;
+  UserRole: string;
+  Status: string;
+  FailureReason: string;
+}
+
 export default function AuditLogs() {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Update time every second
   useEffect(() => {
@@ -14,6 +32,33 @@ export default function AuditLogs() {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch audit logs from database
+  useEffect(() => {
+    fetchAuditLogs();
+  }, []);
+
+  const fetchAuditLogs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch("http://localhost:5000/api/audit-logs");
+      const data = await response.json();
+      
+      if (response.ok) {
+        setLogs(data.logs);
+        console.log(`Loaded ${data.logs.length} audit log entries`);
+      } else {
+        setError(data.message || "Failed to fetch audit logs");
+      }
+    } catch (err) {
+      console.error("Error fetching audit logs:", err);
+      setError("Unable to connect to server. Please ensure the server is running on port 5000.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDateTime = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -28,53 +73,34 @@ export default function AuditLogs() {
     });
   };
 
-const logs = [
-    {
-        logId: 1,
-        timestamp: "2025-08-17 08:02:22 AM",
-        actionType: "Document Issued",
-        documentId: "1001",
-        documentHash: "1a2b3c4d5e6f...",
-        documentType: "Barangay Clearance",
-        checkerMethod: "N/A",
-        userId: "101",
-        userName: "Jersey Marisga",
-        userRole: "Barangay abcsdef",
-        ipAddress: "203.0.113.5",
-        status: "Success",
-        failureReason: "N/A",
-    },
-    {
-        logId: 2,
-        timestamp: "2025-08-17 08:02:15 AM",
-        actionType: "Verification",
-        documentId: "1001",
-        documentHash: "1a2b3c4d5e6f...",
-        documentType: "Barangay Clearance",
-        checkerMethod: "QR Scan",
-        userId: "312",
-        userName: "Sarah Lagmay",
-        userRole: "Website User",
-        ipAddress: "198.51.100.1",
-        status: "Success",
-        failureReason: "N/A",
-    },
-    {
-        logId: 3,
-        timestamp: "2025-08-17 08:06:15 AM",
-        actionType: "Login",
-        documentId: "N/A",
-        documentHash: "N/A",
-        documentType: "N/A",
-        checkerMethod: "N/A",
-        userId: "102",
-        userName: "Howard Ocampo",
-        userRole: "Barangay Secretary",
-        ipAddress: "203.0.113.6",
-        status: "Failed",
-        failureReason: "Credentials Mismatch",
-    },
-];
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return timestamp;
+    }
+  };
+
+  // Filter logs based on search term
+  const filteredLogs = logs.filter(log => 
+    Object.values(log).some(value => 
+      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  const handleSearch = () => {
+    // Search is already handled by the filteredLogs computed value
+    console.log(`Searching for: "${searchTerm}"`);
+  };
 
 return (
     <Layout>
@@ -88,66 +114,111 @@ return (
         <div className="bg-gray-800 border border-gray-600 rounded px-3 py-2">
           <span className="text-white text-sm font-mono">{formatDateTime(currentDateTime)}</span>
         </div>
-      </header>      {/* Main Content */}
-        <div className="flex-1 flex flex-col w-full">
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col w-full">
         
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-6 w-full max-w-3xl">
-            <Input
+          <Input
             type="text"
-            placeholder="Search"
+            placeholder="Search audit logs..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-blue-950 text-white border-gray-700 flex-1"
-            />
-            <Button className="bg-blue-700 hover:bg-blue-600">Search</Button>
+          />
+          <Button 
+            onClick={handleSearch}
+            className="bg-blue-700 hover:bg-blue-600"
+          >
+            Search
+          </Button>
+          <Button 
+            onClick={fetchAuditLogs}
+            className="bg-green-700 hover:bg-green-600"
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </Button>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-8 text-gray-400">
+            <p>Loading audit logs...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-600 text-red-300 p-4 rounded-lg mb-6">
+            <p><strong>Error:</strong> {error}</p>
+          </div>
+        )}
+
         {/* Audit Logs Table */}
-        
+        {!loading && !error && (
+          <div className="overflow-x-auto">
             <table className="w-full text-sm text-gray-300 border-collapse">
-            <thead>
+              <thead>
                 <tr className="bg-blue-900 text-white">
-                <th className="px-4 py-2 text-left" colSpan={3}>Log Entry</th>
-                <th className="px-4 py-2 text-left" colSpan={4}>Document Actions</th>
-                <th className="px-4 py-2 text-left" colSpan={3}>User and Staff</th>
-                <th className="px-4 py-2 text-left" colSpan={3}>Security & Fraud</th>
+                  <th className="px-4 py-2 text-left" colSpan={3}>Log Entry</th>
+                  <th className="px-4 py-2 text-left" colSpan={3}>Document Actions</th>
+                  <th className="px-4 py-2 text-left" colSpan={3}>User and Staff</th>
+                  <th className="px-4 py-2 text-left" colSpan={2}>Security & Status</th>
                 </tr>
                 <tr className="bg-blue-950 text-white">
-                <th className="px-4 py-2">LogID</th>
-                <th className="px-4 py-2">Timestamp</th>
-                <th className="px-4 py-2">ActionType</th>
-                <th className="px-4 py-2">DocumentID</th>
-                <th className="px-4 py-2">DocumentHash</th>
-                <th className="px-4 py-2">DocumentType</th>
-                <th className="px-4 py-2">CheckerMethod</th>
-                <th className="px-4 py-2">UserID</th>
-                <th className="px-4 py-2">UserName</th>
-                <th className="px-4 py-2">UserRole</th>
-                <th className="px-4 py-2">IPAddress</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">FailureReason</th>
+                  <th className="px-4 py-2">LogID</th>
+                  <th className="px-4 py-2">Timestamp</th>
+                  <th className="px-4 py-2">ActionType</th>
+                  <th className="px-4 py-2">DocumentID</th>
+                  <th className="px-4 py-2">DocumentType</th>
+                  <th className="px-4 py-2">CheckerMethod</th>
+                  <th className="px-4 py-2">UserID</th>
+                  <th className="px-4 py-2">UserName</th>
+                  <th className="px-4 py-2">UserRole</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">FailureReason</th>
                 </tr>
-            </thead>
-            <tbody>
-                {logs.map((log) => (
-                <tr key={log.logId} className="border-b border-gray-700 hover:bg-blue-900/30">
-                    <td className="px-4 py-2">{log.logId}</td>
-                    <td className="px-4 py-2">{log.timestamp}</td>
-                    <td className="px-4 py-2">{log.actionType}</td>
-                    <td className="px-4 py-2">{log.documentId}</td>
-                    <td className="px-4 py-2">{log.documentHash}</td>
-                    <td className="px-4 py-2">{log.documentType}</td>
-                    <td className="px-4 py-2">{log.checkerMethod}</td>
-                    <td className="px-4 py-2">{log.userId}</td>
-                    <td className="px-4 py-2">{log.userName}</td>
-                    <td className="px-4 py-2">{log.userRole}</td>
-                    <td className="px-4 py-2">{log.ipAddress}</td>
-                    <td className="px-4 py-2">{log.status}</td>
-                    <td className="px-4 py-2">{log.failureReason}</td>
-                </tr>
-                ))}
-            </tbody>
+              </thead>
+              <tbody>
+                {filteredLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                      {searchTerm ? "No audit logs found matching your search." : "No audit logs available."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLogs.map((log) => (
+                    <tr key={log.LogID} className="border-b border-gray-700 hover:bg-blue-900/30">
+                      <td className="px-4 py-2">{log.LogID}</td>
+                      <td className="px-4 py-2">{formatTimestamp(log.Timestamp)}</td>
+                      <td className="px-4 py-2">{log.ActionType}</td>
+                      <td className="px-4 py-2">{log.DocumentID || 'N/A'}</td>
+                      <td className="px-4 py-2">{log.DocumentType || 'N/A'}</td>
+                      <td className="px-4 py-2">{log.CheckerMethod || 'N/A'}</td>
+                      <td className="px-4 py-2">{log.UserID}</td>
+                      <td className="px-4 py-2">{log.UserName}</td>
+                      <td className="px-4 py-2">{log.UserRole}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          log.Status === 'Success' 
+                            ? 'bg-green-900/30 text-green-300' 
+                            : 'bg-red-900/30 text-red-300'
+                        }`}>
+                          {log.Status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">{log.FailureReason}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
             </table>
-        </div>
+          </div>
+        )}
+      </div>
     </Layout>
-    );
+  );
 }
