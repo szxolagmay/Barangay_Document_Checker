@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Upload, QrCode, CheckCircle, XCircle } from "lucide-react";
+import { Upload, CheckCircle, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
 
@@ -18,6 +18,28 @@ export default function PublicDocumentChecker() {
     documentInfo?: any;
   } | null>(null);
   const navigate = useNavigate();
+
+  // Helper function to format dates for display
+  const formatDateDisplay = (dateInput: string | null | undefined): string => {
+    if (!dateInput) return "N/A";
+    
+    // If it's already in a readable format, return as is
+    if (!dateInput.includes('T') && !dateInput.includes('Z')) {
+      return dateInput;
+    }
+    
+    try {
+      const date = new Date(dateInput);
+      const options: Intl.DateTimeFormatOptions = { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      };
+      return date.toLocaleDateString('en-US', options);
+    } catch {
+      return dateInput; // Return original if parsing fails
+    }
+  };
 
   const handleBrgyLogin = () => {
     navigate("/login");
@@ -301,22 +323,11 @@ See DATABASE_SETUP.md for detailed instructions.`
                   <div className="mt-3 text-xs bg-gray-800/50 p-2 rounded">
                     <p><strong>Document ID:</strong> {validationResult.documentInfo.id}</p>
                     <p><strong>Type:</strong> {validationResult.documentInfo.type}</p>
-                    <p><strong>Issued:</strong> {validationResult.documentInfo.issuedOn}</p>
+                    <p><strong>Issued:</strong> {formatDateDisplay(validationResult.documentInfo.issuedOn)}</p>
                   </div>
                 )}
               </div>
             )}
-
-            <div className="flex flex-col items-center gap-3 border-t border-gray-700 pt-6 w-full">
-              <QrCode className="w-12 h-12 text-gray-400" />
-              <p className="text-gray-300 text-lg">Scan QR here</p>
-              <Button 
-                variant="secondary" 
-                className="bg-blue-700 text-white hover:bg-blue-600 px-6 py-3"
-              >
-                Scan QR
-              </Button>
-            </div>
           </Card>
         </div>
       </main>
