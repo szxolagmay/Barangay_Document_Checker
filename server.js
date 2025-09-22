@@ -28,6 +28,20 @@ if (err) {
 console.log(" Connected to MySQL Database");
 });
 
+// Helper function to format dates
+function formatDate(dateInput) {
+  if (!dateInput) return null;
+  
+  const date = new Date(dateInput);
+  const options = { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric'
+  };
+  
+  return date.toLocaleDateString('en-US', options);
+}
+
 // API endpoint for recent issuances (top-level)
 app.get("/api/recent-issuance", (req, res) => {
   const queries = [
@@ -249,6 +263,122 @@ app.post("/api/businesspermit", (req, res) => {
       );
     }
   );
+});
+
+// API endpoint to validate QR code hash
+app.post("/api/validate-qr", (req, res) => {
+  console.log("Received QR validation request");
+  const { hash } = req.body;
+  
+  if (!hash) {
+    return res.status(400).json({ 
+      isValid: false, 
+      message: "Hash code is required" 
+    });
+  }
+  
+  console.log("Validating hash:", hash);
+  
+  // Search across all three document tables
+  const queries = [
+    {
+      table: "certificate_of_indigency",
+      query: "SELECT *, 'Certificate of Indigency' as document_type FROM certificate_of_indigency WHERE hash_code = ?",
+      type: "Certificate of Indigency"
+    },
+    {
+      table: "barangay_clearance", 
+      query: "SELECT *, 'Barangay Clearance' as document_type FROM barangay_clearance WHERE hash_code = ?",
+      type: "Barangay Clearance"
+    },
+    {
+      table: "business_permit",
+      query: "SELECT *, 'Business Permit' as document_type FROM business_permit WHERE hash_code = ?", 
+      type: "Business Permit"
+    }
+  ];
+  
+  // Execute all queries in parallel
+  Promise.all(
+    queries.map(({ query, type }) => 
+      new Promise((resolve, reject) => {
+        db.query(query, [hash], (err, results) => {
+          if (err) {
+            console.error(`Error querying ${type}:`, err);
+            return reject(err);
+          }
+          resolve({ results, type });
+        });
+      })
+    )
+  )
+  .then((allResults) => {
+    // Find the first table that has a matching hash
+    const foundResult = allResults.find(result => result.results.length > 0);
+    
+    if (foundResult) {
+      const document = foundResult.results[0];
+      console.log("Hash found in database:", document);
+      
+      // Format the response based on document type
+      let documentInfo = {
+        id: document.clearance_id || document.id,
+        type: foundResult.type,
+        hash: document.hash_code,
+        issuedOn: formatDate(document.IssuedOn || document.issued_on),
+        createdAt: document.created_at
+      };
+      
+      // Add specific fields based on document type
+      if (foundResult.type === "Certificate of Indigency") {
+        documentInfo = {
+          ...documentInfo,
+          name: `${document.FirstName} ${document.MiddleName || ''} ${document.LastName}`.trim(),
+          address: document.Address,
+          age: document.Age,
+          purpose: document.Purpose,
+          gender: document.Gender
+        };
+      } else if (foundResult.type === "Barangay Clearance") {
+        documentInfo = {
+          ...documentInfo,
+          name: `${document.FirstName} ${document.MiddleName || ''} ${document.LastName}`.trim(),
+          address: document.Address,
+          age: document.Age,
+          purpose: document.Purpose
+        };
+      } else if (foundResult.type === "Business Permit") {
+        documentInfo = {
+          ...documentInfo,
+          name: `${document.first_name} ${document.middle_name || ''} ${document.last_name}`.trim(),
+          address: document.address,
+          businessName: document.business_name,
+          businessNature: document.business_nature,
+          businessAddress: document.business_address
+        };
+      }
+      
+      res.json({
+        isValid: true,
+        message: "Document verified successfully",
+        documentType: foundResult.type,
+        document: documentInfo
+      });
+    } else {
+      console.log("Hash not found in any table");
+      res.json({
+        isValid: false,
+        message: "Hash code not found in database"
+      });
+    }
+  })
+  .catch((error) => {
+    console.error("Database validation error:", error);
+    res.status(500).json({
+      isValid: false,
+      message: "Database error occurred during validation"
+    });
+  });
 });
 
 // start server

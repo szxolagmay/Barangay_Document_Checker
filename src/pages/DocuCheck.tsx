@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
-import { Upload, QrCode } from "lucide-react";
+import { Upload, QrCode, CheckCircle, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import jsQR from "jsqr";
 
 export default function PublicDocumentChecker() {
-  const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const fileInputRef = useState<HTMLInputElement | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{
+    isValid: boolean;
+    message: string;
+    documentInfo?: any;
+  } | null>(null);
   const navigate = useNavigate();
 
   const handleBrgyLogin = () => {
@@ -31,6 +36,163 @@ export default function PublicDocumentChecker() {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       setShowPreview(true);
+      setValidationResult(null); // Reset validation result when new file is uploaded
+    }
+  };
+
+  // Function to decode QR code from uploaded image
+  const decodeQRFromImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx?.drawImage(img, 0, 0);
+        
+        const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (imageData) {
+          // Use jsQR to decode the QR code
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          
+          if (code) {
+            console.log('QR Code found:', code.data);
+            resolve(code.data);
+          } else {
+            reject(new Error('No QR code found in the image. Please ensure the image contains a clear QR code.'));
+          }
+        } else {
+          reject(new Error('Failed to process image data.'));
+        }
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image. Please try a different image file.'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Function to validate QR code hash against database
+  const validateQRCode = async () => {
+    if (!uploadedImage) {
+      setValidationResult({
+        isValid: false,
+        message: "No QR code image uploaded."
+      });
+      return;
+    }
+
+    setValidating(true);
+    setValidationResult(null);
+
+    try {
+      // Step 1: Decode QR code from image
+      const qrHash = await decodeQRFromImage(uploadedImage);
+      console.log('Extracted QR hash:', qrHash);
+      
+      // Step 2: Send hash to backend for validation
+      try {
+        const response = await fetch("http://localhost:5000/api/validate-qr", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            hash: qrHash,
+            documentType: "Document" // Default since we removed type selection
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          if (data.isValid) {
+            setValidationResult({
+              isValid: true,
+              message: `✅ Valid document! This ${data.documentType} certificate is authentic.`,
+              documentInfo: data.document
+            });
+          } else {
+            setValidationResult({
+              isValid: false,
+              message: "❌ Invalid QR code. This document could not be verified in our database."
+            });
+          }
+        } else {
+          setValidationResult({
+            isValid: false,
+            message: `❌ Validation error: ${data.message || 'Unable to validate document'}`
+          });
+        }
+      } catch (networkError) {
+        // If backend API is not available, use temporary mock validation
+        console.log('Backend API not available. Using temporary mock validation...');
+        
+        // Temporary mock database for testing (remove when MySQL is set up)
+        const mockDatabase = [
+          {
+            hash: "db8237d31e7ce91969940bd1e3967001",
+            type: "Barangay Clearance",
+            name: "John M Doe",
+            address: "McArthur Highway corner Aguas Street, Balibago",
+            purpose: "School Requirement",
+            issuedOn: "September 22, 2025"
+          },
+          {
+            hash: "b5e2ec106a20c84d73644aae05babf2e",
+            type: "Certificate of Indigency",
+            name: "Jane Smith",
+            address: "Sample Address",
+            purpose: "Medical Assistance",
+            issuedOn: "September 20, 2025"
+          }
+        ];
+        
+        const foundDocument = mockDatabase.find(doc => 
+          qrHash.toLowerCase().includes(doc.hash.toLowerCase()) || 
+          doc.hash.toLowerCase().includes(qrHash.toLowerCase())
+        );
+        
+        if (foundDocument) {
+          setValidationResult({
+            isValid: true,
+            message: `✅ Valid document! ${foundDocument.type} verified (MOCK MODE).`,
+            documentInfo: {
+              id: foundDocument.hash.substring(0, 8).toUpperCase(),
+              type: foundDocument.type,
+              name: foundDocument.name,
+              address: foundDocument.address,
+              purpose: foundDocument.purpose,
+              issuedOn: foundDocument.issuedOn,
+              hash: foundDocument.hash
+            }
+          });
+        } else {
+          setValidationResult({
+            isValid: false,
+            message: `❌ Document not found in mock database.
+            
+QR Hash: "${qrHash.substring(0, 32)}..."
+
+To enable full validation:
+1. Install MySQL Server
+2. Create 'barangay_db' database  
+3. Start server with: node server.js
+
+See DATABASE_SETUP.md for detailed instructions.`
+          });
+        }
+      }
+    } catch (error) {
+      console.error('QR validation error:', error);
+      setValidationResult({
+        isValid: false,
+        message: `❌ ${error instanceof Error ? error.message : 'Error validating QR code. Please try again with a clearer image.'}`
+      });
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -82,35 +244,12 @@ export default function PublicDocumentChecker() {
           Public Document Checker
         </motion.h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
-          {/* DOCUMENT TYPE CHECKBOX */}
-          <Card className="bg-gray-950 border-none shadow-xl rounded-2xl p-6">
-            <h3 className="text-xl font-bold mb-4">Tick Document Type</h3>
-            <div className="flex flex-col gap-3 text-gray-300">
-              {[
-                "Barangay Clearance",
-                "Certificate of Residency",
-                "Certificate of Indigency",
-                "Business Permit",
-              ].map((doc) => (
-                <label key={doc} className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={selectedDoc === doc}
-                    onCheckedChange={(checked) =>
-                      checked === true ? setSelectedDoc(doc) : setSelectedDoc(null)
-                    }
-                  />
-                  {doc}
-                </label>
-              ))}
-            </div>
-          </Card>
-
-          {/* UPLOAD/SCAN QR */}
-          <Card className="bg-gray-950 border-dashed border-2 border-gray-600 shadow-xl rounded-2xl flex flex-col justify-center items-center text-center p-6 gap-8">
+        <div className="flex justify-center max-w-2xl w-full">
+          {/* UPLOAD/SCAN QR - Centered */}
+          <Card className="bg-gray-950 border-dashed border-2 border-gray-600 shadow-xl rounded-2xl flex flex-col justify-center items-center text-center p-8 gap-6 w-full">
             <div className="flex flex-col items-center gap-3">
-              <Upload className="w-10 h-10 text-gray-400" />
-              <p className="text-gray-300">Upload QR here</p>
+              <Upload className="w-12 h-12 text-gray-400" />
+              <p className="text-gray-300 text-lg">Upload QR here</p>
               <input
                 type="file"
                 accept="image/*"
@@ -120,19 +259,61 @@ export default function PublicDocumentChecker() {
               />
               <Button
                 variant="secondary"
-                className="bg-blue-700 text-white hover:bg-blue-600"
+                className="bg-blue-700 text-white hover:bg-blue-600 px-6 py-3"
                 onClick={handleUploadClick}
               >
                 Upload QR
               </Button>
               {uploadedImage && (
-                <p className="text-green-400 mt-2">Image uploaded: {uploadedImage.name}</p>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-green-400">Image uploaded: {uploadedImage.name}</p>
+                  <Button
+                    variant="secondary"
+                    className="bg-green-700 text-white hover:bg-green-600"
+                    onClick={validateQRCode}
+                    disabled={validating}
+                  >
+                    {validating ? "Validating..." : "Validate"}
+                  </Button>
+                </div>
               )}
             </div>
-            <div className="flex flex-col items-center gap-3">
-              <QrCode className="w-10 h-10 text-gray-400" />
-              <p className="text-gray-300">Scan QR here</p>
-              <Button variant="secondary" className="bg-blue-700 text-white hover:bg-blue-600">
+            
+            {/* Validation Result */}
+            {validationResult && (
+              <div className={`w-full p-4 rounded-lg border ${
+                validationResult.isValid 
+                  ? 'bg-green-900/30 border-green-600 text-green-300' 
+                  : 'bg-red-900/30 border-red-600 text-red-300'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {validationResult.isValid ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <XCircle className="w-5 h-5" />
+                  )}
+                  <span className="font-semibold">
+                    {validationResult.isValid ? "Document Verified" : "Verification Failed"}
+                  </span>
+                </div>
+                <p className="text-sm">{validationResult.message}</p>
+                {validationResult.documentInfo && (
+                  <div className="mt-3 text-xs bg-gray-800/50 p-2 rounded">
+                    <p><strong>Document ID:</strong> {validationResult.documentInfo.id}</p>
+                    <p><strong>Type:</strong> {validationResult.documentInfo.type}</p>
+                    <p><strong>Issued:</strong> {validationResult.documentInfo.issuedOn}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-3 border-t border-gray-700 pt-6 w-full">
+              <QrCode className="w-12 h-12 text-gray-400" />
+              <p className="text-gray-300 text-lg">Scan QR here</p>
+              <Button 
+                variant="secondary" 
+                className="bg-blue-700 text-white hover:bg-blue-600 px-6 py-3"
+              >
                 Scan QR
               </Button>
             </div>

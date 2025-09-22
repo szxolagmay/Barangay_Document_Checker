@@ -301,10 +301,53 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
   };
 
   const handleOpenConfirm = () => { setActiveTab("details"); setShowConfirm(true); };
-  const handleCloseResult = () => {
+  const handleCloseResult = async () => {
+    // Download QR code before closing
+    if (qrCodeUrl && resultHash) {
+      await downloadQRCode();
+    }
+    
     setShowResult(false);
     setShowReadyToPrint(true);
     generatePDF(); // Generate PDF for Ready-to-Print modal
+  };
+
+  // Function to download QR code with person's name
+  const downloadQRCode = async () => {
+    try {
+      if (!qrCodeUrl || !resultHash) return;
+      
+      // Create filename with person's name and timestamp
+      const sanitizedName = fullName
+        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .trim();
+      
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+      const filename = `${sanitizedName}_BusinessPermit_QR_${timestamp}.png`;
+      
+      // Fetch the QR code image
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up object URL
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      console.log(`Business Permit QR code downloaded as: ${filename}`);
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+    }
   };
 
   const handleCloseReadyToPrint = () => {
