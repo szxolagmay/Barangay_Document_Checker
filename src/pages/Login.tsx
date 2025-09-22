@@ -68,9 +68,9 @@ export default function Login() {
         <h1 className="text-lg font-bold flex items-center gap-2">
           <img src="/logo.png" alt="Barangay Logo" className="w-8 h-8" /> Barangay DocuCheck
         </h1>
-        <nav className="flex gap-6 text-sm">
+        <nav className="absolute left-1/2 transform -translate-x-1/2 flex gap-6 text-sm">
           <a href="#about" className="hover:text-blue-400 transition">About</a>
-          <a href="#home" className="hover:text-blue-400 transition">Home</a>
+          <button onClick={() => navigate('/')} className="hover:text-blue-400 transition">Home</button>
           <a href="#contact" className="hover:text-blue-400 transition">Contact</a>
         </nav>
         <Button onClick={handleReturn} variant="secondary" className="bg-blue-700 text-white hover:bg-blue-600">
