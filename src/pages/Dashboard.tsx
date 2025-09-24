@@ -1,50 +1,9 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "./Layout";
 
 const Dashboard: React.FC = () => {
-
-  const navigate = useNavigate();
-  useEffect(() => {
-    const authed = sessionStorage.getItem('isAuthenticated') === 'true';
-    if (!authed) {
-      navigate('/login', { replace: true });
-    }
-  }, [navigate]);
-
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const dateStr = now.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const timeStr = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
   return (
     <Layout>
-      {/* Header */}
-      <header className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-        <nav className="flex gap-6 text-gray-300">
-          <a href="#" className="hover:text-white">About</a>
-          <a href="#" className="text-blue-400">Home</a>
-          <a href="#" className="hover:text-white">Contact</a>
-        </nav>
-        <span className="text-sm">{dateStr} // {timeStr}</span>
-      </header>
-
       <h1 className="text-2xl font-bold mb-6">Welcome, Barangay 227</h1>
 
       {/* HOLDER DIGITS */}
