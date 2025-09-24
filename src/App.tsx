@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import type { ReactElement } from "react";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 import DocuCheck from "./pages/DocuCheck";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -22,6 +24,12 @@ function App() {
       <Routes>
         {/* Default route HOLDER */}
         <Route path="/" element={<Navigate to="/docucheck" replace />} />
+
+        {/* About */}
+        <Route path="/about" element={<About />} />
+
+        {/* Contact */}
+        <Route path="/contact" element={<Contact />} />
 
         {/* Docucheck */}
         <Route path="/docucheck" element={<DocuCheck />} />

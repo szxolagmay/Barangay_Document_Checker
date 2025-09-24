@@ -1,10 +1,33 @@
 import { Card, CardContent } from "@/components/ui/card";
+import React, { useEffect, useState } from "react";
 import Layout from "./Layout";
 
 const Dashboard: React.FC = () => {
+
+    const [now, setNow] = useState(new Date());
+  
+    useEffect(() => {
+      const id = setInterval(() => setNow(new Date()), 1000);
+      return () => clearInterval(id);
+    }, []);
+  
+    const dateStr = now.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  
+    const timeStr = now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
   return (
     <Layout>
       <h1 className="text-2xl font-bold mb-6">Welcome, Barangay 227</h1>
+      <span className="text-sm">{dateStr} // {timeStr}</span>
 
       {/* HOLDER DIGITS */}
       <div className="grid grid-cols-3 gap-6 mb-6">

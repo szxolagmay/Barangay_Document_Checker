@@ -30,48 +30,48 @@ const Sidebar: React.FC = () => {
       <div className="text-lg font-bold mb-8">Barangay DocuCheck</div>
       <nav className="flex flex-col gap-4">
         <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `flex items-center gap-2 ${
-              isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
-            }`
-          }
-        >
-          <Home size={18} /> Dashboard
-        </NavLink>
+            to="/dashboard"
+            className={({ isActive }) =>
+              `flex items-center gap-4 ${
+                isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
+              }`
+            }
+          >
+            <Home size={24} /> Dashboard
+          </NavLink>
 
-        <NavLink
-          to="/issuance"
-          className={({ isActive }) =>
-            `flex items-center gap-2 ${
-              isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
-            }`
-          }
-        >
-          <FileText size={18} /> Issuance
-        </NavLink>
+          <NavLink
+            to="/issuance"
+            className={({ isActive }) =>
+              `flex items-center gap-4 ${
+                isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
+              }`
+            }
+          >
+            <FileText size={24} /> Issuance
+          </NavLink>
 
-        <NavLink
-          to="/audit"
-          className={({ isActive }) =>
-            `flex items-center gap-2 ${
-              isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
-            }`
-          }
-        >
-          <FileText size={18} /> Audit Logs
-        </NavLink>
+          <NavLink
+            to="/audit"
+            className={({ isActive }) =>
+              `flex items-center gap-4 ${
+                isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
+              }`
+            }
+          >
+            <FileText size={24} /> Audit Logs
+          </NavLink>
 
-        <NavLink
-          to="/fraud"
-          className={({ isActive }) =>
-            `flex items-center gap-2 ${
-              isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
-            }`
-          }
-        >
-          <ShieldAlert size={18} /> Fraud Monitor
-        </NavLink>
+          <NavLink
+            to="/fraud"
+            className={({ isActive }) =>
+              `flex items-center gap-4 ${
+                isActive ? "text-blue-400 font-semibold" : "hover:text-blue-400"
+              }`
+            }
+          >
+            <ShieldAlert size={24} /> Fraud Monitor
+          </NavLink>
 
         <Button
           variant="secondary"

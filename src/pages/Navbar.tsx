@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
@@ -17,27 +17,6 @@ const Navbar: React.FC = () => {
       }
     }, [navigate]);
   
-
-    const [now, setNow] = useState(new Date());
-  
-    useEffect(() => {
-      const id = setInterval(() => setNow(new Date()), 1000);
-      return () => clearInterval(id);
-    }, []);
-  
-    const dateStr = now.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  
-    const timeStr = now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
-
   return (
     <header className="w-full flex justify-between items-center py-4 px-6 bg-blue-900 fixed top-0 left-0 z-50">
       <h1 className="text-lg font-bold flex items-center gap-2">
@@ -49,7 +28,7 @@ const Navbar: React.FC = () => {
         Barangay DocuCheck
       </h1>
 
-      <nav className="flex gap-6 text-sm">
+      <nav className="absolute left-1/2 transform -translate-x-1/2 flex gap-6 text-sm">
         <Link to="/about" className="hover:text-blue-400 transition">
           About
         </Link>
@@ -59,7 +38,6 @@ const Navbar: React.FC = () => {
         <Link to="/contact" className="hover:text-blue-400 transition">
           Contact
         </Link>
-        <span className="text-sm">{dateStr} // {timeStr}</span>
       </nav>
 
       <Button onClick={handleReturn} className="bg-blue-700 hover:bg-blue-600">
