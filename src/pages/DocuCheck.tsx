@@ -258,7 +258,7 @@ export default function PublicDocumentChecker() {
       {/* Navbar */}
       <header className="w-full flex justify-between items-center py-4 px-6 bg-blue-900 fixed top-0 left-0 z-50">
         <h1 className="text-lg font-bold flex items-center gap-2">
-          <img src="/logo.png" alt="Barangay Logo" className="w-8 h-8" /> Barangay DocuCheck
+          <img src="/images/SystemLogo.png" alt="Barangay Logo" className="w-8 h-8" /> Barangay DocuCheck
         </h1>
         <nav className="absolute left-1/2 transform -translate-x-1/2 flex gap-6 text-sm">
           <a href="#about" className="hover:text-blue-400 transition">
